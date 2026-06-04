@@ -1118,12 +1118,13 @@ select.db-inp option { background: var(--dk-s2); }
 /* Calendar */
 .cal-dow { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; margin-bottom: 4px; }
 .cal-dow span { text-align: center; font-family: 'Space Grotesk', sans-serif; font-size: 9px; color: var(--dk-dim); padding: 4px 0; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-.cal-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+.cal-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; min-width: 0; }
 .cday {
   min-height: 34px;
   display: flex; align-items: center; justify-content: center;
   font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700;
   cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
+  min-width: 0; overflow: hidden;
 }
 @media (max-width: 480px) {
   .cday { min-height: 28px; font-size: 10px; }
@@ -1165,9 +1166,43 @@ select.db-inp option { background: var(--dk-s2); }
 .goal-bar { height: 6px; background: var(--dk-s3); overflow: hidden; margin-top: 5px; margin-bottom: 14px; }
 .goal-fill { height: 100%; transition: width 1s ease; }
 
-/* Approve rows */
-.approve-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--dk-border); }
-.approve-row:last-child { border-bottom: none; }
+/* ═══════════════════════════════════════════
+   SCHEDULED TASKS
+   ═══════════════════════════════════════════ */
+.sched-task {
+  background: var(--dk-s2);
+  border: 2px solid var(--dk-border2);
+  padding: 14px;
+  margin-bottom: 10px;
+  transition: border-color 0.15s;
+  position: relative;
+}
+.sched-task:hover { border-color: var(--yellow); }
+.sched-task.done-task { opacity: 0.6; }
+.sched-task.overdue { border-color: rgba(248,113,113,0.5); }
+.sched-task-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.sched-task-title {
+  font-family: 'Anybody', sans-serif;
+  font-size: 15px; font-weight: 800;
+  text-transform: uppercase; flex: 1;
+}
+.sched-task-title.done-text { text-decoration: line-through; color: var(--dk-dim); }
+.sched-task-meta {
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;
+  font-family: 'Space Grotesk', sans-serif; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--dk-sub);
+}
+.sched-task-desc {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px; color: var(--dk-sub); margin-bottom: 8px; line-height: 1.5;
+}
+.sched-task-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.sched-progress-bar {
+  height: 4px; background: var(--dk-s3); margin-bottom: 8px; border-radius: 2px; overflow: hidden;
+}
+.sched-progress-fill { height: 100%; background: var(--yellow); transition: width 0.5s ease; }
+
+
 
 /* Empty state */
 .empty-msg {
@@ -1394,6 +1429,8 @@ select.db-inp option { background: var(--dk-s2); }
   /* Grids collapse */
   .g2, .g31 { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  /* Calendar: stack panel then detail on mobile */
+  #sec-calendar .g31 { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
@@ -1557,9 +1594,9 @@ select.db-inp option { background: var(--dk-s2); }
   <header class="auth-header">
     <div class="brand-logo">Workoholic <span>Golmaal</span></div>
     <nav class="header-nav">
-      <a href="#" class="nav-link">Get Rich</a>
-      <a href="#" class="nav-link">Hustle</a>
-      <a href="#" class="nav-link">Reviews</a>
+      <a href="#" class="nav-link" onclick="openAuthModal('signup');return false;">Get Rich</a>
+      <a href="#" class="nav-link" onclick="openAuthModal('signup');return false;">Hustle</a>
+      <a href="#" class="nav-link" onclick="openAuthModal('login');return false;">Reviews</a>
     </nav>
     <button class="header-cta" onclick="openAuthModal('login')">JOIN THE CHAOS</button>
   </header>
@@ -1586,7 +1623,7 @@ select.db-inp option { background: var(--dk-s2); }
       </p>
 
       <div class="hero-actions">
-        <button class="btn-hero" onclick="openAuthModal('signup')">GET RICH NOW</button>
+        <button class="btn-hero btn-press" onclick="openAuthModal('signup')">GET RICH NOW</button>
         <div class="user-count-badge">
           <span class="material-symbols-outlined">group</span>
           <span id="hero-user-count">0 Hustlers</span> registered!
@@ -2028,12 +2065,62 @@ select.db-inp option { background: var(--dk-s2); }
 
     <!-- TASKS -->
     <div class="db-section" id="sec-tasks">
+      <!-- Task Scheduler Panel (Admin/Partner: assign tasks; Members: see assigned) -->
+      <div class="db-panel" id="task-scheduler-panel">
+        <div class="db-panel-head">
+          <h3>📅 Schedule a Task</h3>
+          <span class="pill pill-v" id="sched-role-pill">—</span>
+        </div>
+        <div class="db-panel-body">
+          <div class="g2" style="margin-bottom:0">
+            <div>
+              <div class="db-fg">
+                <label class="db-flabel">Task Title</label>
+                <input class="db-inp" id="sched-title" placeholder="Enter task name...">
+              </div>
+              <div class="db-fg">
+                <label class="db-flabel">Description (optional)</label>
+                <textarea class="db-inp" id="sched-desc" placeholder="Add details..." style="min-height:60px;resize:vertical"></textarea>
+              </div>
+            </div>
+            <div>
+              <div class="db-fg">
+                <label class="db-flabel">Priority</label>
+                <select class="db-inp" id="sched-pri">
+                  <option value="high">🔴 High</option>
+                  <option value="med" selected>🟡 Medium</option>
+                  <option value="low">🟢 Low</option>
+                </select>
+              </div>
+              <div class="db-fg">
+                <label class="db-flabel">Start Date</label>
+                <input class="db-inp" type="date" id="sched-start">
+              </div>
+              <div class="db-fg">
+                <label class="db-flabel">Due Date</label>
+                <input class="db-inp" type="date" id="sched-due">
+              </div>
+            </div>
+          </div>
+          <!-- Assign To — only shown for admin/partner -->
+          <div class="db-fg" id="sched-assign-wrap">
+            <label class="db-flabel">Assign To</label>
+            <select class="db-inp" id="sched-assignee">
+              <option value="">— Assign to user —</option>
+            </select>
+          </div>
+          <div class="db-alert db-al-d" id="sched-alert"></div>
+          <button class="db-btn db-btn-y" style="margin-top:10px;width:100%" onclick="scheduleTask()">📌 SCHEDULE TASK</button>
+        </div>
+      </div>
+
+      <!-- My Tasks + Assigned Tasks panels -->
       <div class="g2">
         <div class="db-panel">
-          <div class="db-panel-head"><h3>Today's Tasks</h3><span class="pill pill-g" id="tasks-sum">0/0</span></div>
+          <div class="db-panel-head"><h3>🗒 Quick Tasks (Today)</h3><span class="pill pill-g" id="tasks-sum">0/0</span></div>
           <div class="db-panel-body">
             <div style="display:flex;gap:8px;margin-bottom:14px">
-              <input class="db-inp" id="todo-inp" placeholder="Add a task..." style="flex:1" onkeydown="if(event.key==='Enter')addTodo()">
+              <input class="db-inp" id="todo-inp" placeholder="Add a quick task..." style="flex:1" onkeydown="if(event.key==='Enter')addTodo()">
               <select class="db-inp" id="todo-pri" style="width:80px">
                 <option value="high">🔴 High</option>
                 <option value="med" selected>🟡 Med</option>
@@ -2041,13 +2128,31 @@ select.db-inp option { background: var(--dk-s2); }
               </select>
               <button class="db-btn db-btn-y" onclick="addTodo()">+</button>
             </div>
-            <div id="todo-list"><div class="empty-msg">Add your first task!</div></div>
+            <div id="todo-list"><div class="empty-msg">Add your first quick task!</div></div>
           </div>
         </div>
         <div class="db-panel">
-          <div class="db-panel-head"><h3>Focus Stats</h3></div>
+          <div class="db-panel-head"><h3>📊 Focus Stats</h3></div>
           <div class="db-panel-body" id="focus-stats"></div>
         </div>
+      </div>
+
+      <!-- Scheduled Tasks -->
+      <div class="db-panel">
+        <div class="db-panel-head">
+          <h3>📋 Scheduled Tasks</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select class="db-inp" id="sched-filter" style="width:130px;padding:5px 8px;font-size:11px" onchange="renderScheduledTasks()">
+              <option value="all">All Tasks</option>
+              <option value="mine">Mine Only</option>
+              <option value="assigned">Assigned by Me</option>
+              <option value="pending">Pending</option>
+              <option value="done">Done</option>
+            </select>
+            <span class="pill pill-y" id="sched-count">0</span>
+          </div>
+        </div>
+        <div class="db-panel-body" id="sched-task-list"><div class="empty-msg">No scheduled tasks yet.</div></div>
       </div>
     </div>
 
@@ -2603,6 +2708,8 @@ function showDashboard() {
   }
 
   renderOverview();
+  // Pre-render calendar so it shows immediately when navigated to
+  renderCalendar();
 }
 
 function showAuthView() {
@@ -2821,7 +2928,7 @@ function renderTracker() {
 }
 
 // ═══════════════════════════════════════════════
-// RENDER: TASKS
+// RENDER: TASKS (Quick + Scheduler)
 // ═══════════════════════════════════════════════
 function addTodo() {
   const inp = document.getElementById('todo-inp'), text = inp.value.trim();
@@ -2833,17 +2940,221 @@ function addTodo() {
 function toggleTodo(id) { const d = getData(); const t = (d.todos||[]).find(t=>t.id===id); if(t) t.done = !t.done; saveData(d); renderTasks(); renderOverview(); }
 function delTodo(id) { const d = getData(); d.todos = (d.todos||[]).filter(t=>t.id!==id); saveData(d); renderTasks(); renderOverview(); }
 
+// ── Scheduled Tasks (shared in golmaal_data_tasks) ──
+function getSharedTasks() {
+  try { return JSON.parse(localStorage.getItem('golmaal_shared_tasks') || '[]'); }
+  catch(e) { return []; }
+}
+function saveSharedTasks(arr) {
+  localStorage.setItem('golmaal_shared_tasks', JSON.stringify(arr));
+}
+
+function scheduleTask() {
+  const CU = sessionStorage.getItem('golmaal_user');
+  const CR = sessionStorage.getItem('golmaal_role');
+  const title    = document.getElementById('sched-title').value.trim();
+  const desc     = document.getElementById('sched-desc').value.trim();
+  const pri      = document.getElementById('sched-pri').value;
+  const start    = document.getElementById('sched-start').value;
+  const due      = document.getElementById('sched-due').value;
+  const assignee = document.getElementById('sched-assignee').value || CU;
+
+  const dbAlrt = (m) => { const el = document.getElementById('sched-alert'); el.innerHTML = m; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 3500); };
+
+  if (!title) { dbAlrt('⚠️ Task title is required.'); return; }
+  if (!start)  { dbAlrt('⚠️ Start date is required.'); return; }
+  if (!due)    { dbAlrt('⚠️ Due date is required.'); return; }
+  if (due < start) { dbAlrt('⚠️ Due date must be after start date.'); return; }
+
+  // Permission check: partner cannot assign to admin
+  if (CR === 'partner') {
+    const db = getDB();
+    const targetRole = assignee === CU ? CR : (db[assignee]?.role || 'member');
+    if (targetRole === 'admin') { dbAlrt('⚠️ Partners cannot assign tasks to admins.'); return; }
+  }
+
+  const tasks = getSharedTasks();
+  tasks.push({
+    id:       Date.now(),
+    title,
+    desc,
+    priority: pri,
+    startDate: start,
+    dueDate:   due,
+    assignedTo: assignee,
+    assignedBy: CU,
+    done:      false,
+    createdAt: new Date().toISOString()
+  });
+  saveSharedTasks(tasks);
+  document.getElementById('sched-title').value = '';
+  document.getElementById('sched-desc').value  = '';
+  document.getElementById('sched-start').value = '';
+  document.getElementById('sched-due').value   = '';
+  document.getElementById('sched-assignee').value = '';
+  showPopup('success', `📌 Task "<b>${esc(title)}</b>" scheduled and assigned to <b>${esc(assignee)}</b>!`);
+  renderScheduledTasks();
+}
+
+function toggleSchedTask(id) {
+  const CU = sessionStorage.getItem('golmaal_user');
+  const CR = sessionStorage.getItem('golmaal_role');
+  const tasks = getSharedTasks();
+  const t = tasks.find(t => t.id === id);
+  if (!t) return;
+  // Only assigned user, assigner (admin/partner), or admin can toggle
+  if (t.assignedTo !== CU && t.assignedBy !== CU && CR !== 'admin') {
+    showPopup('danger', '⚠️ You can only complete tasks assigned to you!'); return;
+  }
+  t.done = !t.done;
+  if (t.done) t.completedAt = new Date().toISOString();
+  else delete t.completedAt;
+  saveSharedTasks(tasks);
+  renderScheduledTasks();
+  renderOverview();
+}
+
+function delSchedTask(id) {
+  const CU = sessionStorage.getItem('golmaal_user');
+  const CR = sessionStorage.getItem('golmaal_role');
+  const tasks = getSharedTasks();
+  const t = tasks.find(t => t.id === id);
+  if (!t) return;
+  if (CR !== 'admin' && t.assignedBy !== CU) {
+    showPopup('danger', '⚠️ Only the task creator or admin can delete this task.'); return;
+  }
+  if (!confirm('Delete this scheduled task?')) return;
+  saveSharedTasks(tasks.filter(t => t.id !== id));
+  renderScheduledTasks();
+}
+
+function renderScheduledTasks() {
+  const CU = sessionStorage.getItem('golmaal_user');
+  const CR = sessionStorage.getItem('golmaal_role');
+  const filter = document.getElementById('sched-filter')?.value || 'all';
+  const prioMap = { high: { label: '🔴 High', cls: 'pill-r' }, med: { label: '🟡 Med', cls: 'pill-y' }, low: { label: '🟢 Low', cls: 'pill-g' } };
+
+  let tasks = getSharedTasks();
+
+  // Filter by role: members only see tasks assigned to them or by them; admin/partner see all
+  if (CR === 'member') {
+    tasks = tasks.filter(t => t.assignedTo === CU || t.assignedBy === CU);
+  }
+
+  // Apply dropdown filter
+  if (filter === 'mine')     tasks = tasks.filter(t => t.assignedTo === CU);
+  if (filter === 'assigned') tasks = tasks.filter(t => t.assignedBy === CU);
+  if (filter === 'pending')  tasks = tasks.filter(t => !t.done);
+  if (filter === 'done')     tasks = tasks.filter(t => t.done);
+
+  document.getElementById('sched-count').textContent = tasks.length;
+  const el = document.getElementById('sched-task-list');
+  if (!tasks.length) { el.innerHTML = '<div class="empty-msg">No scheduled tasks match this filter.</div>'; return; }
+
+  // Sort: overdue first, then by due date
+  tasks.sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return a.dueDate.localeCompare(b.dueDate);
+  });
+
+  el.innerHTML = tasks.map(t => {
+    const isOverdue = !t.done && t.dueDate < TODAY;
+    const isMine = t.assignedTo === CU;
+    const isCreator = t.assignedBy === CU;
+    const canDelete = CR === 'admin' || isCreator;
+    const canToggle = isMine || isCreator || CR === 'admin';
+
+    // Progress bar: days elapsed / total days
+    const startMs = new Date(t.startDate).getTime();
+    const dueMs   = new Date(t.dueDate).getTime();
+    const nowMs   = new Date(TODAY).getTime();
+    const totalDays = Math.max(1, Math.round((dueMs - startMs) / 86400000));
+    const elapsed   = Math.min(totalDays, Math.max(0, Math.round((nowMs - startMs) / 86400000)));
+    const pct = t.done ? 100 : Math.round(elapsed / totalDays * 100);
+
+    const daysLeft = Math.round((dueMs - nowMs) / 86400000);
+    const daysLbl = t.done
+      ? `<span class="pill pill-g">✓ Done</span>`
+      : isOverdue
+        ? `<span class="pill pill-r">⚠ ${Math.abs(daysLeft)}d overdue</span>`
+        : daysLeft === 0
+          ? `<span class="pill pill-r">Due today!</span>`
+          : `<span class="pill pill-v">${daysLeft}d left</span>`;
+
+    return `<div class="sched-task${t.done?' done-task':''}${isOverdue?' overdue':''}">
+      <div class="sched-task-top">
+        <span class="sched-task-title${t.done?' done-text':''}">${esc(t.title)}</span>
+        <span class="pill ${prioMap[t.priority]?.cls||'pill-y'}">${prioMap[t.priority]?.label||t.priority}</span>
+      </div>
+      ${t.desc ? `<div class="sched-task-desc">${esc(t.desc)}</div>` : ''}
+      <div class="sched-progress-bar"><div class="sched-progress-fill" style="width:${pct}%;background:${t.done?'var(--dk-g)':isOverdue?'var(--dk-r)':'var(--yellow)'}"></div></div>
+      <div class="sched-task-meta">
+        <span>📅 ${t.startDate} → ${t.dueDate}</span>
+        ${daysLbl}
+        <span>👤 <b>${esc(t.assignedTo)}</b></span>
+        <span style="color:var(--dk-dim)">by ${esc(t.assignedBy)}</span>
+      </div>
+      <div class="sched-task-actions">
+        ${canToggle ? `<button class="db-btn ${t.done?'db-btn-ghost':'db-btn-g'}" style="padding:5px 12px;font-size:11px" onclick="toggleSchedTask(${t.id})">${t.done?'↩ Reopen':'✓ Complete'}</button>` : ''}
+        ${canDelete ? `<button class="db-btn db-btn-r" style="padding:5px 12px;font-size:11px" onclick="delSchedTask(${t.id})">🗑 Delete</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function populateAssigneeDropdown() {
+  const CU = sessionStorage.getItem('golmaal_user');
+  const CR = sessionStorage.getItem('golmaal_role');
+  const wrap = document.getElementById('sched-assign-wrap');
+  const sel  = document.getElementById('sched-assignee');
+  const pill = document.getElementById('sched-role-pill');
+
+  if (CR === 'admin') {
+    pill.textContent = '★ Admin — can assign anyone';
+    pill.className = 'pill pill-y';
+    wrap.style.display = 'block';
+    const db = getDB();
+    const others = Object.entries(db).filter(([u]) => u !== CU && db[u].approved);
+    sel.innerHTML = `<option value="${CU}">Myself (${CU})</option>` +
+      others.map(([u,d]) => `<option value="${u}">${u} (${d.role})</option>`).join('');
+  } else if (CR === 'partner') {
+    pill.textContent = '◆ Partner — can assign to members';
+    pill.className = 'pill pill-v';
+    wrap.style.display = 'block';
+    const db = getDB();
+    const members = Object.entries(db).filter(([u,d]) => d.role === 'member' && d.approved && u !== CU);
+    sel.innerHTML = `<option value="${CU}">Myself (${CU})</option>` +
+      members.map(([u]) => `<option value="${u}">${u} (member)</option>`).join('');
+  } else {
+    pill.textContent = '● Member — self only';
+    pill.className = 'pill pill-g';
+    wrap.style.display = 'none';
+  }
+
+  // Default start date to today
+  const sd = document.getElementById('sched-start');
+  if (!sd.value) sd.value = TODAY;
+}
+
 function renderTasks() {
   const todos = getData().todos || [];
   const done = todos.filter(t => t.done).length;
   document.getElementById('tasks-sum').textContent = done + '/' + todos.length;
   const prioMap = { high: '🔴', med: '🟡', low: '🟢' };
   const list = document.getElementById('todo-list');
-  if (!todos.length) { list.innerHTML = '<div class="empty-msg">Add your first task!</div>'; }
+  if (!todos.length) { list.innerHTML = '<div class="empty-msg">Add your first quick task!</div>'; }
   else list.innerHTML = todos.map(t => `<div class="todo-item"><div class="tcheck${t.done?' done':''}" onclick="toggleTodo(${t.id})">${t.done?'✓':''}</div><div class="ttext${t.done?' done':''}">${esc(t.text)}</div><span style="font-size:12px">${prioMap[t.priority]}</span><button class="tdel" onclick="delTodo(${t.id})">×</button></div>`).join('');
   const high = todos.filter(t=>t.priority==='high').length, med = todos.filter(t=>t.priority==='med').length, low = todos.filter(t=>t.priority==='low').length;
   const pct = todos.length ? Math.round(done/todos.length*100) : 0;
-  document.getElementById('focus-stats').innerHTML = `<div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;display:flex;justify-content:space-between;color:var(--dk-text)">Completed<span style="color:var(--dk-sub)">${pct}%</span></div><div class="goal-bar"><div class="goal-fill" style="width:${pct}%;background:var(--yellow)"></div></div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><span class="pill pill-r">🔴 ${high} High</span><span class="pill pill-y">🟡 ${med} Med</span><span class="pill pill-g">🟢 ${low} Low</span></div><div style="margin-top:16px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--dk-sub);line-height:2.2;letter-spacing:0.05em">Total: <b style="color:var(--dk-text)">${todos.length}</b><br>Remaining: <b style="color:var(--yellow)">${todos.length-done}</b><br>Done today: <b style="color:var(--dk-g)">${todos.filter(t=>t.done&&t.date===TODAY).length}</b></div>`;
+  const schedTasks = getSharedTasks();
+  const CU = sessionStorage.getItem('golmaal_user');
+  const mySchedTotal = schedTasks.filter(t => t.assignedTo === CU).length;
+  const mySchedDone  = schedTasks.filter(t => t.assignedTo === CU && t.done).length;
+  document.getElementById('focus-stats').innerHTML = `<div style="font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;display:flex;justify-content:space-between;color:var(--dk-text)">Quick Tasks Done<span style="color:var(--dk-sub)">${pct}%</span></div><div class="goal-bar"><div class="goal-fill" style="width:${pct}%;background:var(--yellow)"></div></div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><span class="pill pill-r">🔴 ${high} High</span><span class="pill pill-y">🟡 ${med} Med</span><span class="pill pill-g">🟢 ${low} Low</span></div><div style="margin-top:16px;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--dk-sub);line-height:2.2;letter-spacing:0.05em">Quick Total: <b style="color:var(--dk-text)">${todos.length}</b><br>Remaining: <b style="color:var(--yellow)">${todos.length-done}</b><br>Scheduled (mine): <b style="color:var(--dk-g)">${mySchedDone}/${mySchedTotal}</b></div>`;
+
+  // Setup scheduler
+  populateAssigneeDropdown();
+  renderScheduledTasks();
 }
 
 // ═══════════════════════════════════════════════
