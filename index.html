@@ -854,21 +854,31 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   margin-bottom: 28px;
   padding-bottom: 20px;
   border-bottom: 4px solid var(--yellow);
+  min-width: 0;
 }
 .db-page-title {
   font-family: 'Anybody', sans-serif;
-  font-size: 26px;
+  font-size: clamp(13px, 3.5vw, 26px);
   font-weight: 900;
   font-style: italic;
   text-transform: uppercase;
   letter-spacing: -0.02em;
   color: var(--dk-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 .db-page-title span { color: var(--yellow); }
-.db-chips { display: flex; gap: 8px; align-items: center; }
+/* Extra shrink for very long usernames */
+.db-page-title.name-long  { font-size: clamp(11px, 2.8vw, 20px); }
+.db-page-title.name-xlong { font-size: clamp(10px, 2.2vw, 16px); }
+.db-chips { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 .db-chip {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 10px;
@@ -1110,9 +1120,14 @@ select.db-inp option { background: var(--dk-s2); }
 .cal-dow span { text-align: center; font-family: 'Space Grotesk', sans-serif; font-size: 9px; color: var(--dk-dim); padding: 4px 0; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .cal-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
 .cday {
-  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  min-height: 34px;
+  display: flex; align-items: center; justify-content: center;
   font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 700;
   cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
+}
+@media (max-width: 480px) {
+  .cday { min-height: 28px; font-size: 10px; }
+  .cal-dow span { font-size: 8px; }
 }
 .cday:hover { background: var(--dk-s3); }
 .cday.today { background: rgba(250,204,21,0.15); border-color: var(--yellow); color: var(--yellow); }
@@ -1166,26 +1181,369 @@ select.db-inp option { background: var(--dk-s2); }
   line-height: 2;
 }
 
-/* ═══════════════
+/* ═══════════════════════════════════
+   AUTH MODAL POPUP
+   ═══════════════════════════════════ */
+#auth-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 8000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modalOverlayIn 0.15s ease both;
+}
+#auth-modal-overlay.show { display: flex; }
+@keyframes modalOverlayIn { from{opacity:0} to{opacity:1} }
+
+#auth-modal-box {
+  background: #fff;
+  border: 5px solid #000;
+  box-shadow: 12px 12px 0 0 #000;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalBoxIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both;
+  position: relative;
+}
+@keyframes modalBoxIn {
+  from { transform: scale(0.75) rotate(-2deg); opacity: 0; }
+  to   { transform: scale(1)    rotate(0deg);  opacity: 1; }
+}
+
+#auth-modal-header {
+  background: #000;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+#auth-modal-header h2 {
+  font-family: 'Anybody', sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 20px;
+  text-transform: uppercase;
+  color: var(--yellow);
+  letter-spacing: -0.01em;
+}
+#auth-modal-close {
+  width: 36px; height: 36px;
+  background: var(--pink); color: #fff;
+  border: 3px solid #fff;
+  font-size: 20px; font-weight: 900;
+  cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+#auth-modal-close:hover { background: #fff; color: #000; }
+#auth-modal-close:active { transform: translate(3px,3px); }
+
+#auth-modal-body { padding: 20px; }
+
+/* Modal tabs — independent from main page tabs */
+.modal-tabs {
+  display: flex;
+  border: 4px solid #000;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.modal-tab {
+  flex: 1;
+  padding: 10px 6px;
+  background: #fff;
+  border: none;
+  border-right: 3px solid #000;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--on-surface-dim);
+}
+.modal-tab:last-child { border-right: none; }
+.modal-tab.active { background: var(--yellow); color: #000; }
+.modal-tab:not(.active):hover { background: var(--yellow-light); }
+
+/* Modal panels */
+.modal-panel { display: none; flex-direction: column; gap: 14px; }
+.modal-panel.active { display: flex; }
+
+/* Stripes bar at bottom of modal */
+#auth-modal-box::after {
+  content: '';
+  display: block;
+  height: 10px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--yellow) 0px, var(--yellow) 6px,
+    #000 6px, #000 7px
+  );
+  border-top: 3px solid #000;
+}
+
+/* ═══════════════════════════════════
    RESPONSIVE
-   ═══════════════ */
+   ═══════════════════════════════════ */
+/* ═══════════════════════════════════════════
+   HAMBURGER BUTTON (mobile only)
+   ═══════════════════════════════════════════ */
+.ham-btn {
+  display: none;
+  width: 42px; height: 42px;
+  background: var(--yellow);
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 0 #000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  z-index: 300;
+  transition: all 0.1s;
+}
+.ham-btn:active { transform: translate(3px,3px); box-shadow: none; }
+.ham-btn span {
+  display: block;
+  width: 20px; height: 2.5px;
+  background: #000;
+  transition: transform 0.25s ease, opacity 0.2s ease, width 0.2s ease;
+  transform-origin: center;
+}
+/* Animate to X when sidebar is open */
+.ham-btn.open { background: #000; box-shadow: 3px 3px 0 0 var(--yellow); }
+.ham-btn.open span { background: var(--yellow); }
+.ham-btn.open span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); }
+.ham-btn.open span:nth-child(2) { opacity: 0; width: 0; }
+.ham-btn.open span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); }
+/* Sidebar overlay (mobile) */
+.sb-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 199;
+}
+.sb-overlay.show { display: block; }
+
+/* Profile avatar button in topbar (mobile) */
+.topbar-av-btn {
+  width: 38px; height: 38px;
+  border: 3px solid #000;
+  box-shadow: 2px 2px 0 0 #000;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Anybody', sans-serif;
+  font-size: 13px; font-weight: 900;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: all 0.15s;
+}
+.topbar-av-btn:hover { box-shadow: 3px 3px 0 0 #000; transform: translate(-1px,-1px); }
+.topbar-av-btn:active { transform: translate(2px,2px); box-shadow: none; }
+
 @media (max-width: 900px) {
+  /* Landing */
   .hero-section { flex-direction: column; }
   .hero-left { border-right: none; border-bottom: 4px solid #000; min-height: auto; padding: 32px 20px; }
   .hero-right { min-width: unset; }
   .header-nav { display: none; }
-  .db-sidebar { width: 56px; }
-  .sb-logo-area .sb-logo-text { display: none; }
-  .sb-logo-area .sb-logo-sub { display: none; }
-  .sb-section-label { display: none; }
-  .sb-nav-item span { display: none; }
-  .sb-nav-item .dot { display: none; }
-  .sb-user-name, .sb-user-role, .sb-logout { display: none; }
-  .sb-bottom { padding: 8px; }
-  .sb-user-chip { justify-content: center; }
-  .db-main { margin-left: 56px; padding: 16px; }
+
+  /* Sidebar — hidden off-screen by default on mobile */
+  .db-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+    width: 250px !important;
+    z-index: 400;
+    box-shadow: 8px 0 0 0 #000;
+  }
+  .db-sidebar.open { transform: translateX(0); }
+  /* Show all sidebar labels on mobile (full sidebar slides in) */
+  .sb-logo-area .sb-logo-text,
+  .sb-logo-area .sb-logo-sub,
+  .sb-section-label,
+  .sb-nav-item span,
+  .sb-user-name,
+  .sb-user-role,
+  .sb-logout { display: block !important; }
+  .sb-nav-item .dot { display: block !important; }
+  .sb-bottom { padding: 14px; }
+  .sb-user-chip { justify-content: flex-start; }
+
+  /* Main — full width, no left margin */
+  .db-main { margin-left: 0 !important; padding: 14px; }
+
+  /* Topbar on mobile: show hamburger, hide role chip */
+  .ham-btn { display: flex; }
+  #role-chip { display: none; }
+
+  /* Grids collapse */
   .g2, .g31 { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .db-page-title { font-size: 18px; }
+  .auth-header { padding: 10px 14px; }
+  .hero-left { padding: 24px 16px; }
+  .hero-h1 { font-size: 36px; }
+}
+
+/* ═══════════════════════════════════════════
+   PROFILE SECTION
+   ═══════════════════════════════════════════ */
+.profile-av-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.profile-av {
+  width: 90px; height: 90px;
+  border: 5px solid #000;
+  box-shadow: 5px 5px 0 0 #000;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Anybody', sans-serif;
+  font-size: 30px; font-weight: 900;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.1s;
+  flex-shrink: 0;
+}
+.profile-av:hover { transform: translate(-2px,-2px); box-shadow: 7px 7px 0 0 #000; }
+.profile-av img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+.profile-av-edit {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 22px;
+  opacity: 0; transition: opacity 0.15s;
+}
+.profile-av:hover .profile-av-edit { opacity: 1; }
+.profile-name-lbl {
+  font-family: 'Anybody', sans-serif;
+  font-size: 22px; font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: var(--dk-text);
+}
+.profile-role-badge {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 4px 14px;
+  border: 3px solid #000;
+}
+.profile-field {
+  margin-bottom: 16px;
+}
+.profile-field label {
+  display: block;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--dk-dim);
+  margin-bottom: 6px;
+}
+.profile-field input {
+  width: 100%;
+  background: var(--dk-s2);
+  border: 3px solid var(--dk-border2);
+  color: var(--dk-text);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; font-weight: 700;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.profile-field input:focus { border-color: var(--yellow); }
+.profile-field input[readonly] {
+  opacity: 0.5; cursor: not-allowed;
+}
+.profile-joined {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--dk-dim);
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════
+   USER MANAGEMENT — MOBILE CARDS
+   ═══════════════════════════════════════════ */
+.user-card {
+  background: var(--dk-s2);
+  border: 2px solid var(--dk-border2);
+  padding: 14px;
+  margin-bottom: 10px;
+  transition: border-color 0.15s;
+}
+.user-card:hover { border-color: var(--yellow); }
+.user-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.user-card-info { flex: 1; min-width: 0; }
+.user-card-name {
+  font-family: 'Anybody', sans-serif;
+  font-size: 15px; font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.user-card-email {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px; color: var(--dk-sub);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.user-card-pills {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.user-card-actions {
+  display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+}
+.user-card-role-sel {
+  flex: 1; min-width: 90px;
+  background: var(--dk-s3);
+  border: 2px solid var(--dk-border2);
+  color: var(--dk-text);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px; font-weight: 700;
+  padding: 6px 8px;
+  outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+.user-card-role-sel:focus { border-color: var(--yellow); }
+.pending-card {
+  background: rgba(248,113,113,0.06);
+  border: 2px solid rgba(248,113,113,0.25);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.pending-card-info { flex: 1; min-width: 120px; }
+.pending-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -1203,7 +1561,7 @@ select.db-inp option { background: var(--dk-s2); }
       <a href="#" class="nav-link">Hustle</a>
       <a href="#" class="nav-link">Reviews</a>
     </nav>
-    <button class="header-cta" onclick="scrollToAuth()">JOIN THE CHAOS</button>
+    <button class="header-cta" onclick="openAuthModal('login')">JOIN THE CHAOS</button>
   </header>
 
   <!-- Hero + Auth -->
@@ -1228,7 +1586,7 @@ select.db-inp option { background: var(--dk-s2); }
       </p>
 
       <div class="hero-actions">
-        <button class="btn-hero" onclick="scrollToAuth()">GET RICH NOW</button>
+        <button class="btn-hero" onclick="openAuthModal('signup')">GET RICH NOW</button>
         <div class="user-count-badge">
           <span class="material-symbols-outlined">group</span>
           <span id="hero-user-count">0 Hustlers</span> registered!
@@ -1353,7 +1711,7 @@ select.db-inp option { background: var(--dk-s2); }
           <h2>Join the Hustle</h2>
         </div>
         <p style="font-size:13px;font-weight:600;margin-bottom:16px;line-height:1.5">Don't be a victim. Be the one who wins. Limited spots for elite chaos masters.</p>
-        <button class="btn-primary" style="background:var(--pink);color:#fff" onclick="showAuthTab('signup',document.querySelectorAll('.auth-tab')[1])">START SCAMMING →</button>
+        <button class="btn-primary" style="background:var(--pink);color:#fff" onclick="openAuthModal('signup')">START SCAMMING →</button>
       </div>
     </div>
   </section>
@@ -1374,6 +1732,103 @@ select.db-inp option { background: var(--dk-s2); }
       </div>
       <div style="margin-left:auto">
         <div class="sticker-badge" style="transform:rotate(2deg)">Pending Approval System Active</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════
+       AUTH MODAL — triggered by CTA buttons
+       ═══════════════════════════════ -->
+  <div id="auth-modal-overlay">
+    <div id="auth-modal-box">
+      <div id="auth-modal-header">
+        <h2>⚡ Enter the Den</h2>
+        <button id="auth-modal-close" onclick="closeAuthModal()">✕</button>
+      </div>
+      <div id="auth-modal-body">
+
+        <!-- Modal Tabs -->
+        <div class="modal-tabs">
+          <button class="modal-tab active" id="mtab-login"  onclick="switchModalTab('login',this)">Log In</button>
+          <button class="modal-tab"        id="mtab-signup" onclick="switchModalTab('signup',this)">Sign Up</button>
+          <button class="modal-tab"        id="mtab-forgot" onclick="switchModalTab('forgot',this)">Forgot?</button>
+        </div>
+
+        <!-- LOGIN -->
+        <div class="modal-panel active" id="mpanel-login">
+          <div class="form-group">
+            <span class="form-label">Hustler ID</span>
+            <input class="form-input" type="text" id="m-li-user" placeholder="your_username" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Secret Code</span>
+            <div class="pw-wrap">
+              <input class="form-input" type="password" id="m-li-pass" placeholder="••••••••" style="padding-right:44px">
+              <button class="pw-toggle" onclick="togglePw('m-li-pass',this)" tabindex="-1">👁</button>
+            </div>
+          </div>
+          <button class="btn-primary" onclick="doModalLogin()">ACCESS CHAOS →</button>
+          <div class="forgot-link" onclick="switchModalTab('forgot',document.getElementById('mtab-forgot'))">Forgot your scam? →</div>
+        </div>
+
+        <!-- SIGN UP -->
+        <div class="modal-panel" id="mpanel-signup">
+          <div class="form-group">
+            <span class="form-label">Hustler ID</span>
+            <input class="form-input" type="text" id="m-su-user" placeholder="choose_username" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Email</span>
+            <input class="form-input" type="email" id="m-su-email" placeholder="you@chaos.com">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Secret Code</span>
+            <div class="pw-wrap">
+              <input class="form-input" type="password" id="m-su-pass" placeholder="min 6 chars" style="padding-right:44px">
+              <button class="pw-toggle" onclick="togglePw('m-su-pass',this)" tabindex="-1">👁</button>
+            </div>
+          </div>
+          <button class="btn-primary" onclick="doModalSignup()">CREATE ACCOUNT →</button>
+        </div>
+
+        <!-- FORGOT -->
+        <div class="modal-panel" id="mpanel-forgot">
+          <div id="m-fp-step1">
+            <p style="font-size:11px;color:var(--on-surface-dim);margin-bottom:14px;font-family:'Space Grotesk',sans-serif;font-weight:700;line-height:1.6;text-transform:uppercase;letter-spacing:0.03em">Enter your <b style="color:#000">username</b> and <b style="color:#000">registered email</b>.</p>
+            <div class="form-group">
+              <span class="form-label">Hustler ID</span>
+              <input class="form-input" type="text" id="m-fp-user" placeholder="your_username">
+            </div>
+            <div class="form-group" style="margin-top:20px">
+              <span class="form-label">Registered Email</span>
+              <input class="form-input" type="email" id="m-fp-email" placeholder="your@email.com">
+            </div>
+            <button class="btn-primary" style="margin-top:16px" onclick="doModalFP1()">SEND OTP →</button>
+          </div>
+          <div id="m-fp-step2" style="display:none">
+            <div class="alert alert-info show" id="m-fp-otp-display" style="text-align:center;font-size:14px;letter-spacing:0.1em;margin-bottom:12px"></div>
+            <p style="font-family:'Space Grotesk',sans-serif;font-size:10px;color:var(--on-surface-dim);text-align:center;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;font-weight:700">Enter 6-digit code:</p>
+            <div class="otp-inputs">
+              <input class="otp-digit" maxlength="1" id="m-otp0" oninput="modalOtpMove(this,0)">
+              <input class="otp-digit" maxlength="1" id="m-otp1" oninput="modalOtpMove(this,1)">
+              <input class="otp-digit" maxlength="1" id="m-otp2" oninput="modalOtpMove(this,2)">
+              <input class="otp-digit" maxlength="1" id="m-otp3" oninput="modalOtpMove(this,3)">
+              <input class="otp-digit" maxlength="1" id="m-otp4" oninput="modalOtpMove(this,4)">
+              <input class="otp-digit" maxlength="1" id="m-otp5" oninput="modalOtpMove(this,5)">
+            </div>
+            <button class="btn-primary" onclick="doModalFP2()">VERIFY OTP →</button>
+            <button class="btn-secondary" style="margin-top:8px" onclick="resetModalFP()">← BACK</button>
+          </div>
+          <div id="m-fp-step3" style="display:none">
+            <p style="font-family:'Space Grotesk',sans-serif;font-size:11px;color:var(--on-surface-dim);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.03em;font-weight:700">Identity verified! Your password:</p>
+            <div style="background:var(--yellow);border:4px solid #000;padding:20px;text-align:center;box-shadow:var(--shadow-sm)">
+              <div style="font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--on-surface-dim);margin-bottom:8px">YOUR PASSWORD</div>
+              <div id="m-fp-pw-val" style="font-family:'Anybody',sans-serif;font-size:28px;font-weight:900;color:#000;letter-spacing:0.05em">—</div>
+            </div>
+            <button class="btn-secondary" style="margin-top:12px" onclick="resetModalFP();switchModalTab('login',document.getElementById('mtab-login'))">← BACK TO LOGIN</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -1446,6 +1901,11 @@ select.db-inp option { background: var(--dk-s2); }
       <span>Notes</span>
     </div>
 
+    <div class="sb-nav-item" onclick="dbNav('profile',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span>Your Profile</span>
+    </div>
+
     <div id="sb-admin-section" style="display:none">
       <div class="sb-section-label">Admin</div>
       <div class="sb-nav-item" onclick="dbNav('admin',this)">
@@ -1467,13 +1927,22 @@ select.db-inp option { background: var(--dk-s2); }
     </div>
   </nav>
 
+  <!-- Sidebar overlay (mobile tap-outside) -->
+  <div class="sb-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+
   <!-- Main -->
   <main class="db-main">
     <div class="db-topbar">
+      <!-- Hamburger (mobile only) -->
+      <button class="ham-btn" id="ham-btn" onclick="toggleSidebar()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
       <div class="db-page-title">Hello, <span id="greet-name">there</span> ⚡</div>
       <div class="db-chips">
         <div class="db-chip" id="role-chip">member</div>
         <div class="db-chip" id="date-chip">—</div>
+        <!-- Profile avatar button — opens profile section -->
+        <div class="topbar-av-btn av-member" id="topbar-av" onclick="openProfile()" title="Your Profile">??</div>
       </div>
     </div>
 
@@ -1602,6 +2071,52 @@ select.db-inp option { background: var(--dk-s2); }
       </div>
     </div>
 
+    <!-- PROFILE -->
+    <div class="db-section" id="sec-profile">
+      <div class="g2">
+        <!-- Left: avatar + identity -->
+        <div class="db-panel">
+          <div class="db-panel-head"><h3>Your Identity</h3></div>
+          <div class="db-panel-body">
+            <div class="profile-av-wrap">
+              <div class="profile-av av-member" id="prof-av" onclick="document.getElementById('prof-photo-inp').click()" title="Click to change photo">
+                <span id="prof-av-initials"></span>
+                <img id="prof-av-img" src="" style="display:none">
+                <div class="profile-av-edit">📷</div>
+              </div>
+              <input type="file" id="prof-photo-inp" accept="image/*" style="display:none" onchange="handleProfilePhoto(this)">
+              <div class="profile-name-lbl" id="prof-name-lbl">—</div>
+              <div class="profile-role-badge" id="prof-role-badge">Member</div>
+            </div>
+            <div class="profile-joined" id="prof-joined">Joined: —</div>
+          </div>
+        </div>
+
+        <!-- Right: editable details -->
+        <div class="db-panel">
+          <div class="db-panel-head"><h3>Edit Details</h3></div>
+          <div class="db-panel-body">
+            <div class="profile-field">
+              <label>Username (cannot change)</label>
+              <input type="text" id="prof-inp-user" readonly>
+            </div>
+            <div class="profile-field">
+              <label>Email Address</label>
+              <input type="email" id="prof-inp-email" placeholder="your@email.com">
+            </div>
+            <div class="profile-field">
+              <label>New Password (leave blank to keep current)</label>
+              <input type="password" id="prof-inp-pass" placeholder="Enter new password...">
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
+              <button class="btn-primary" onclick="saveProfile()">SAVE CHANGES →</button>
+              <button class="btn-secondary" onclick="cancelProfilePhoto()">REMOVE PHOTO</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ADMIN -->
     <div class="db-section" id="sec-admin">
       <div class="db-panel" id="pending-panel">
@@ -1683,37 +2198,53 @@ async function syncUsersToSupabase(db) {
       joined_at:     u.joinedAt  || new Date().toISOString()
     }));
   if (rows.length === 0) return;
-  try {
-    const { error } = await sbClient.from('golmaal_users').upsert(rows, { onConflict: 'username' });
-    if (error) console.warn('[Golmaal] User sync error:', error.message);
-    else console.log(`[Golmaal] ${rows.length} user(s) synced to Supabase ✅`);
-  } catch(e) { console.warn('[Golmaal] syncUsers failed:', e); }
+  const { error: syncErr } = await sbClient.from('golmaal_users').upsert(rows, { onConflict: 'username' });
+  if (syncErr) {
+    const code = syncErr.code || '';
+    const msg  = syncErr.message || JSON.stringify(syncErr);
+    if (code === '42P01' || msg.includes('does not exist')) {
+      console.info('%c[Golmaal] golmaal_users table missing — run the SQL setup script.', 'color:#f59e0b;font-weight:bold');
+    } else {
+      console.warn('[Golmaal] User sync error — code:', code, '| message:', msg);
+    }
+  } else {
+    console.log(`%c[Golmaal] ${rows.length} user(s) synced to Supabase ✅`, 'color:#22c55e;font-weight:bold');
+  }
 }
 
 // Pull all users from Supabase into localStorage (called on page load)
 async function loadUsersFromSupabase() {
   if (!sbClient) return;
-  try {
-    const { data, error } = await sbClient.from('golmaal_users').select('*');
-    if (error) throw error;
-    if (data && data.length > 0) {
-      const db = getDB();
-      data.forEach(u => {
-        // Don't overwrite admin from remote — keep local admin as source of truth
-        if (u.username === 'scammer_admin') return;
-        db[u.username] = {
-          password:  u.password_hash,
-          email:     u.email,
-          role:      u.role,
-          approved:  u.approved,
-          joinedAt:  u.joined_at
-        };
-      });
-      localStorage.setItem('golmaal_db', JSON.stringify(db));
-      if (typeof renderUserCount === 'function') renderUserCount();
-      console.log('[Golmaal] Users loaded from Supabase ✅');
+  const { data, error } = await sbClient.from('golmaal_users').select('*');
+  if (error) {
+    const code = error.code || '';
+    const msg  = error.message || JSON.stringify(error);
+    if (code === '42P01' || msg.includes('does not exist') || msg.includes('relation')) {
+      // Table hasn't been created yet — silent, just use localStorage
+      console.info('%c[Golmaal] golmaal_users table not found yet. Create it in Supabase SQL Editor (see README). Using localStorage only.', 'color:#f59e0b;font-weight:bold');
+    } else {
+      console.warn('[Golmaal] loadUsers error — code:', code, '| message:', msg);
     }
-  } catch(e) { console.warn('[Golmaal] loadUsers failed:', e); }
+    return;
+  }
+  if (data && data.length > 0) {
+    const db = getDB();
+    data.forEach(u => {
+      if (u.username === 'scammer_admin') return; // admin stays local
+      db[u.username] = {
+        password: u.password_hash,
+        email:    u.email,
+        role:     u.role,
+        approved: u.approved,
+        joinedAt: u.joined_at
+      };
+    });
+    localStorage.setItem('golmaal_db', JSON.stringify(db));
+    if (typeof renderUserCount === 'function') renderUserCount();
+    console.log(`%c[Golmaal] ${data.length} user(s) loaded from Supabase ✅`, 'color:#22c55e;font-weight:bold');
+  } else {
+    console.log('[Golmaal] Supabase golmaal_users is empty — using localStorage.');
+  }
 }
 
 // Seed admin on every load — kept local only, never upserted to Supabase
@@ -1747,8 +2278,16 @@ function saveData(d) {
       username:   CU,
       data:       JSON.stringify(d),
       updated_at: new Date().toISOString()
-    }, { onConflict: 'username' }).then(({ error }) => {
-      if (error) console.warn('[Golmaal] Work data sync error:', error.message);
+    }, { onConflict: 'username' }).then(({ error: wErr }) => {
+      if (wErr) {
+        const code = wErr.code || '';
+        const msg  = wErr.message || JSON.stringify(wErr);
+        if (code === '42P01' || msg.includes('does not exist')) {
+          console.info('%c[Golmaal] golmaal_work_data table missing — run the SQL setup script.', 'color:#f59e0b;font-weight:bold');
+        } else {
+          console.warn('[Golmaal] Work data sync error — code:', code, '| message:', msg);
+        }
+      }
     });
   }
 }
@@ -1965,6 +2504,63 @@ function resetFP() {
 // ═══════════════════════════════════════════════
 // VIEW SWITCHING
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// AVATAR HELPER — single source of truth
+// Always clears old styles before applying new ones.
+// Prevents photo bleed between different accounts.
+// ═══════════════════════════════════════════════
+function refreshAllAvatars(username, role) {
+  if (!username) return;
+  const initials = username.slice(0,2).toUpperCase();
+  const roleCls  = role==='admin'?'av-admin':role==='partner'?'av-partner':'av-member';
+
+  // Read THIS user's photo from their own localStorage key
+  let photo = null;
+  try {
+    const d = JSON.parse(localStorage.getItem('golmaal_data_' + username) || '{}');
+    photo = d.profilePhoto || null;
+  } catch(e) {}
+
+  // Helper to apply to a single element
+  function applyAv(el, extraClass) {
+    if (!el) return;
+    // Always reset first — prevents previous user's photo showing
+    el.style.backgroundImage = '';
+    el.style.backgroundSize  = '';
+    el.style.backgroundPosition = '';
+    el.style.fontSize = '';
+    el.textContent = '';
+
+    if (photo) {
+      el.style.backgroundImage    = 'url(' + photo + ')';
+      el.style.backgroundSize     = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.textContent = ''; // no initials when photo shown
+    } else {
+      el.textContent = initials;
+    }
+    if (extraClass) el.className = extraClass + ' ' + roleCls;
+  }
+
+  applyAv(document.getElementById('sb-av'),      'sb-avatar');
+  applyAv(document.getElementById('topbar-av'),  'topbar-av-btn');
+
+  // Profile section avatar (only if visible)
+  const profAv       = document.getElementById('prof-av');
+  const profImg      = document.getElementById('prof-av-img');
+  const profInitials = document.getElementById('prof-av-initials');
+  if (profAv) {
+    profAv.className = 'profile-av ' + roleCls;
+    if (photo) {
+      if (profImg)      { profImg.src = photo; profImg.style.display = 'block'; }
+      if (profInitials) { profInitials.style.display = 'none'; }
+    } else {
+      if (profImg)      { profImg.style.display = 'none'; profImg.src = ''; }
+      if (profInitials) { profInitials.textContent = initials; profInitials.style.display = 'block'; }
+    }
+  }
+}
+
 function showDashboard() {
   const CU = sessionStorage.getItem('golmaal_user');
   const CR = sessionStorage.getItem('golmaal_role');
@@ -1980,13 +2576,24 @@ function showDashboard() {
   document.getElementById('sb-uname').textContent = CU;
   document.getElementById('sb-role-lbl').textContent = CR;
   document.getElementById('greet-name').textContent = CU;
-  document.getElementById('date-chip').textContent = NOW.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  // Fluid font scaling based on username length
+  const _titleEl = document.querySelector('.db-page-title');
+  if (_titleEl) {
+    _titleEl.classList.remove('name-long','name-xlong');
+    if (CU.length > 14) _titleEl.classList.add('name-xlong');
+    else if (CU.length > 9) _titleEl.classList.add('name-long');
+  }
+  // Date as dd/mm/yy
+  const dd = String(NOW.getDate()).padStart(2,'0');
+  const mm = String(NOW.getMonth()+1).padStart(2,'0');
+  const yy = String(NOW.getFullYear()).slice(-2);
+  document.getElementById('date-chip').textContent = dd+'/'+mm+'/'+yy;
   document.getElementById('notes-date-lbl').textContent = NOW.toISOString().slice(0,10);
   document.getElementById('role-chip').textContent = ({admin:'★ Admin',partner:'◆ Partner',member:'● Member'})[CR] || CR;
 
-  const av = document.getElementById('sb-av');
-  av.textContent = CU.slice(0,2).toUpperCase();
-  av.className = 'sb-avatar ' + (CR==='admin'?'av-admin':CR==='partner'?'av-partner':'av-member');
+  // Set all avatars for the currently logged-in user
+  // (always call this AFTER sessionStorage has the correct user)
+  refreshAllAvatars(CU, CR);
 
   if (CR === 'admin' || CR === 'partner') {
     document.getElementById('sb-admin-section').style.display = 'block';
@@ -2030,7 +2637,7 @@ function dbNav(id, el) {
   document.querySelectorAll('.sb-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('sec-' + id).classList.add('active');
   el.classList.add('active');
-  const renders = { overview: renderOverview, calendar: renderCalendar, tracker: renderTracker, tasks: renderTasks, notes: renderNotes, admin: renderAdmin };
+  const renders = { overview: renderOverview, calendar: renderCalendar, tracker: renderTracker, tasks: renderTasks, notes: renderNotes, admin: renderAdmin, profile: renderProfile };
   if (renders[id]) renders[id]();
 }
 
@@ -2266,43 +2873,64 @@ function renderAdmin() {
   const allUsers = Object.entries(db);
   const pending = allUsers.filter(([u,d]) => !d.approved && u !== CU && (CR==='admin' || (CR==='partner' && d.role==='member')));
   document.getElementById('pending-count').textContent = pending.length;
-  const pendEl = document.getElementById('pending-list');
-  if (!pending.length) { pendEl.innerHTML = '<div class="empty-msg">No pending approvals. 🎉</div>'; }
-  else pendEl.innerHTML = pending.map(([u,d]) => `<div class="approve-row">
-    <div class="db-tbl-av ${avClsTbl(d.role)}">${u.slice(0,2).toUpperCase()}</div>
-    <div class="db-uinfo"><div class="db-uname">${esc(u)}</div><div class="db-uemail">${esc(d.email)}</div></div>
-    <span class="pill pill-y">${d.role}</span>
-    <button class="db-btn db-btn-g" style="padding:5px 12px;font-size:11px" onclick="approveUser('${u}')">✓ Approve</button>
-    <button class="db-btn db-btn-r" style="padding:5px 12px;font-size:11px" onclick="rejectUser('${u}')">✕ Reject</button>
-  </div>`).join('');
 
+  // ── Pending approvals ──
+  const pendEl = document.getElementById('pending-list');
+  if (!pending.length) {
+    pendEl.innerHTML = '<div class="empty-msg">No pending approvals. 🎉</div>';
+  } else {
+    pendEl.innerHTML = pending.map(([u,d]) => `
+      <div class="pending-card">
+        <div class="db-tbl-av ${avClsTbl(d.role)}">${u.slice(0,2).toUpperCase()}</div>
+        <div class="pending-card-info">
+          <div class="user-card-name">${esc(u)}</div>
+          <div class="user-card-email">${esc(d.email||'')}</div>
+        </div>
+        <span class="pill pill-y" style="flex-shrink:0">${d.role}</span>
+        <div class="pending-card-actions">
+          <button class="db-btn db-btn-g" style="padding:7px 14px;font-size:12px" onclick="approveUser('${u}')">✓ Approve</button>
+          <button class="db-btn db-btn-r" style="padding:7px 14px;font-size:12px" onclick="rejectUser('${u}')">✕ Reject</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── All users — card layout (works on all screen sizes) ──
   document.getElementById('all-count').textContent = allUsers.length;
   const tbl = document.getElementById('all-users-list');
   if (!allUsers.length) { tbl.innerHTML = '<div class="empty-msg">No users.</div>'; return; }
-  tbl.innerHTML = `<table class="db-tbl"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th>${CR==='admin'?'<th>Change Role</th>':''}<th>Actions</th></tr></thead><tbody>${
-    allUsers.map(([u,d]) => {
-      const isSelf = u === CU;
-      const manage = !isSelf && canManage(d.role);
-      const roleOpts = CR==='admin' ? `<td><select class="db-inp" style="width:110px;padding:5px 8px;font-size:11px" onchange="changeRole('${u}',this.value)">
+
+  tbl.innerHTML = allUsers.map(([u,d]) => {
+    const isSelf = u === CU;
+    const manage = !isSelf && canManage(d.role);
+    const roleSelHTML = CR === 'admin' && !isSelf ? `
+      <select class="user-card-role-sel" onchange="changeRole('${u}',this.value)">
         <option value="member"${d.role==='member'?' selected':''}>Member</option>
         <option value="partner"${d.role==='partner'?' selected':''}>Partner</option>
         <option value="admin"${d.role==='admin'?' selected':''}>Admin</option>
-      </select></td>` : '';
-      return `<tr>
-        <td><div style="display:flex;align-items:center;gap:8px"><div class="db-tbl-av ${avClsTbl(d.role)}">${u.slice(0,2).toUpperCase()}</div><b style="font-family:'Anybody',sans-serif;font-size:13px;text-transform:uppercase">${esc(u)}${isSelf?' (you)':''}</b></div></td>
-        <td style="color:var(--dk-sub);font-weight:400">${esc(d.email)}</td>
-        <td>${rbPill(d.role, d.approved)}</td>
-        <td><span class="pill ${d.approved?'pill-g':'pill-r'}">${d.approved?'Active':'Pending'}</span></td>
-        ${roleOpts}
-        <td style="display:flex;gap:6px;flex-wrap:wrap">
-          ${CR==='admin'?`<button class="db-btn" style="padding:4px 10px;font-size:10px;background:rgba(124,107,255,0.1);color:var(--dk-v2);border:1px solid rgba(124,107,255,0.2)" onclick="viewUserData('${u}')">📊 Data</button>`:''}
-          ${manage&&!d.approved?`<button class="db-btn db-btn-g" style="padding:4px 10px;font-size:10px" onclick="approveUser('${u}')">✓</button>`:''}
-          ${manage&&!isSelf?`<button class="db-btn db-btn-r" style="padding:4px 10px;font-size:10px" onclick="deleteUser('${u}')">🗑</button>`:''}
-          ${isSelf||(!manage&&CR!=='admin')?'<span style="color:var(--dk-dim);font-size:11px">—</span>':''}
-        </td>
-      </tr>`;
-    }).join('')
-  }</tbody></table>`;
+      </select>` : '';
+
+    return `
+      <div class="user-card">
+        <div class="user-card-top">
+          <div class="db-tbl-av ${avClsTbl(d.role)}" style="flex-shrink:0">${u.slice(0,2).toUpperCase()}</div>
+          <div class="user-card-info">
+            <div class="user-card-name">${esc(u)}${isSelf ? ' <span style="color:var(--yellow);font-size:10px">(you)</span>' : ''}</div>
+            <div class="user-card-email">${esc(d.email||'—')}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+            ${rbPill(d.role, d.approved)}
+            <span class="pill ${d.approved?'pill-g':'pill-r'}" style="font-size:9px">${d.approved?'Active':'Pending'}</span>
+          </div>
+        </div>
+        <div class="user-card-actions">
+          ${roleSelHTML}
+          ${CR==='admin' ? `<button class="db-btn" style="padding:6px 10px;font-size:11px;background:rgba(124,107,255,0.1);color:var(--dk-v2);border:1px solid rgba(124,107,255,0.2)" onclick="viewUserData('${u}')">📊 Data</button>` : ''}
+          ${manage && !d.approved ? `<button class="db-btn db-btn-g" style="padding:6px 10px;font-size:11px" onclick="approveUser('${u}')">✓ Approve</button>` : ''}
+          ${manage && !isSelf ? `<button class="db-btn db-btn-r" style="padding:6px 10px;font-size:11px" onclick="deleteUser('${u}')">🗑 Delete</button>` : ''}
+          ${isSelf ? '<span style="color:var(--dk-dim);font-size:10px;font-family:Space Grotesk,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.06em">← That&#39;s you!</span>' : ''}
+        </div>
+      </div>`;
+  }).join('');
 
   const dot = document.getElementById('pending-dot');
   dot.style.display = pending.length ? 'block' : 'none';
@@ -2324,7 +2952,7 @@ function viewUserData(u) {
   const totM = log.reduce((a,e) => a+e.minutes, 0);
   document.getElementById('viewing-user').textContent = u;
   document.getElementById('user-data-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-bottom:16px">
       <div style="background:var(--dk-s3);padding:16px;text-align:center;border:2px solid var(--dk-border2)"><div style="font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--dk-sub);margin-bottom:6px;letter-spacing:0.1em">Total Hours</div><div style="font-family:'Anybody',sans-serif;font-size:28px;font-weight:900;color:var(--yellow)">${(totM/60).toFixed(1)}h</div></div>
       <div style="background:var(--dk-s3);padding:16px;text-align:center;border:2px solid var(--dk-border2)"><div style="font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--dk-sub);margin-bottom:6px;letter-spacing:0.1em">Log Entries</div><div style="font-family:'Anybody',sans-serif;font-size:28px;font-weight:900;color:var(--dk-g)">${log.length}</div></div>
       <div style="background:var(--dk-s3);padding:16px;text-align:center;border:2px solid var(--dk-border2)"><div style="font-family:'Space Grotesk',sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--dk-sub);margin-bottom:6px;letter-spacing:0.1em">Tasks</div><div style="font-family:'Anybody',sans-serif;font-size:28px;font-weight:900;color:var(--pink-hot)">${todos.length}</div></div>
@@ -2360,6 +2988,263 @@ document.addEventListener('mousemove', (e) => {
     }
   });
 });
+
+// ═══════════════════════════════════════════════
+// AUTH MODAL — open / close / tab switch
+// ═══════════════════════════════════════════════
+function openAuthModal(tab) {
+  const overlay = document.getElementById('auth-modal-overlay');
+  overlay.classList.add('show');
+  switchModalTab(tab, document.getElementById('mtab-' + tab));
+  overlay.onclick = (e) => { if (e.target === overlay) closeAuthModal(); };
+  document._modalEsc = (e) => { if (e.key === 'Escape') closeAuthModal(); };
+  document.addEventListener('keydown', document._modalEsc);
+}
+function closeAuthModal() {
+  document.getElementById('auth-modal-overlay').classList.remove('show');
+  document.removeEventListener('keydown', document._modalEsc);
+}
+function switchModalTab(id, el) {
+  document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.modal-panel').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('mpanel-' + id).classList.add('active');
+}
+
+// ── Modal Login ──
+function doModalLogin() {
+  const db   = getDB();
+  const user = document.getElementById('m-li-user').value.trim();
+  const pass = document.getElementById('m-li-pass').value;
+  if (!user || !pass) { alrt('su-alert','danger','⚠️ Fill in both fields.'); return; }
+  if (!db[user])      { alrt('su-alert','danger','No account found for that username.'); return; }
+  if (db[user].password !== pass) { alrt('su-alert','danger','❌ Wrong password.'); return; }
+  sessionStorage.setItem('golmaal_user', user);
+  sessionStorage.setItem('golmaal_role', db[user].role);
+  closeAuthModal();
+  showPopup('success', `✅ Welcome back, <b>${user}</b>! Loading your chaos dashboard...`);
+  setTimeout(() => showDashboard(), 1000);
+}
+
+// ── Modal Signup ──
+function doModalSignup() {
+  const db    = getDB();
+  const user  = document.getElementById('m-su-user').value.trim();
+  const email = document.getElementById('m-su-email').value.trim();
+  const pass  = document.getElementById('m-su-pass').value;
+  if (!user || !email || !pass) { alrt('su-alert','danger','⚠️ Please fill in all fields.'); return; }
+  if (!validEmail(email))       { alrt('su-alert','danger','⚠️ Invalid email address.'); return; }
+  if (pass.length < 6)          { alrt('su-alert','danger','⚠️ Password must be 6+ characters.'); return; }
+  if (db[user])                 { alrt('su-alert','danger','⚠️ Username already taken. Try another.'); return; }
+  const emailClash = Object.entries(db).find(([u,d]) => d.email === email);
+  if (emailClash) { alrt('su-alert','danger','⚠️ That email is already registered.'); return; }
+  const passClash = Object.entries(db).find(([u,d]) => d.password === pass && u !== user);
+  if (passClash) {
+    const msgs = [
+      `🚨 BUSTED! That password is already being used by <b>${passClash[0]}</b>! Are you trying to steal their identity?!`,
+      `👀 Oi oi oi... <b>${passClash[0]}</b> called, they want their password back!`,
+      `🤡 Really?! <b>${passClash[0]}</b> is already rocking that password. Be original, yaar!`,
+      `🕵️ Caught red-handed! <b>${passClash[0]}</b> has been using that password since day one!`,
+      `😬 Arre bhai! <b>${passClash[0]}</b> already owns that password. This is Golmaal, not copy-paste!`,
+      `🚷 Password police here! <b>${passClash[0]}</b> filed a complaint against you for password theft!`,
+      `🤯 No no no! <b>${passClash[0]}</b> has that password tattooed on their soul. Pick another!`,
+    ];
+    alrt('su-alert','danger', msgs[Math.floor(Math.random() * msgs.length)]);
+    return;
+  }
+  db[user] = { password: pass, email, role: 'member', approved: true, joinedAt: new Date().toISOString() };
+  saveDB(db);
+  renderUserCount();
+  document.getElementById('m-su-user').value  = '';
+  document.getElementById('m-su-email').value = '';
+  document.getElementById('m-su-pass').value  = '';
+  closeAuthModal();
+  showPopup('success', '🎉 Account created! You can now log in and start the chaos!');
+}
+
+// ── Modal Forgot Password ──
+let _mFpOTP = '', _mFpUser = '';
+function doModalFP1() {
+  const db    = getDB();
+  const user  = document.getElementById('m-fp-user').value.trim();
+  const email = document.getElementById('m-fp-email').value.trim();
+  if (!user || !email) { alrt('su-alert','danger','⚠️ Enter both username and email.'); return; }
+  if (!db[user])       { alrt('su-alert','danger',`No account found for <b>${user}</b>.`); return; }
+  if (db[user].email !== email) { alrt('su-alert','danger','❌ Email does not match our records.'); return; }
+  _mFpOTP  = String(Math.floor(100000 + Math.random() * 900000));
+  _mFpUser = user;
+  document.getElementById('m-fp-step1').style.display = 'none';
+  document.getElementById('m-fp-step2').style.display = 'block';
+  document.getElementById('m-fp-otp-display').innerHTML = `📬 Demo OTP: <b style="font-size:20px;letter-spacing:0.15em">${_mFpOTP}</b>`;
+  document.getElementById('m-otp0').focus();
+}
+function doModalFP2() {
+  const entered = [0,1,2,3,4,5].map(i => document.getElementById('m-otp' + i).value).join('');
+  if (entered.length < 6) { alrt('su-alert','danger','⚠️ Enter all 6 digits.'); return; }
+  if (entered !== _mFpOTP) { alrt('su-alert','danger','❌ Incorrect OTP. Try again.'); return; }
+  const db = getDB();
+  document.getElementById('m-fp-step2').style.display = 'none';
+  document.getElementById('m-fp-step3').style.display = 'block';
+  document.getElementById('m-fp-pw-val').textContent = db[_mFpUser] ? db[_mFpUser].password : '???';
+}
+function modalOtpMove(el, idx) {
+  el.value = el.value.replace(/\D/g, '');
+  if (el.value && idx < 5) document.getElementById('m-otp' + (idx + 1)).focus();
+}
+function resetModalFP() {
+  _mFpOTP = ''; _mFpUser = '';
+  document.getElementById('m-fp-step1').style.display = 'block';
+  document.getElementById('m-fp-step2').style.display = 'none';
+  document.getElementById('m-fp-step3').style.display = 'none';
+  [0,1,2,3,4,5].forEach(i => document.getElementById('m-otp' + i).value = '');
+  document.getElementById('m-fp-user').value  = '';
+  document.getElementById('m-fp-email').value = '';
+  document.getElementById('m-fp-pw-val').textContent = '—';
+}
+
+// ═══════════════════════════════════════════════
+// HAMBURGER SIDEBAR
+// ═══════════════════════════════════════════════
+function toggleSidebar() {
+  const sb  = document.querySelector('.db-sidebar');
+  const ov  = document.getElementById('sb-overlay');
+  const btn = document.getElementById('ham-btn');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('show', open);
+  if (btn) btn.classList.toggle('open', open);
+}
+function closeSidebar() {
+  document.querySelector('.db-sidebar').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('show');
+  const btn = document.getElementById('ham-btn');
+  if (btn) btn.classList.remove('open');
+}
+// Close sidebar when a nav item is tapped on mobile
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.sb-nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (window.innerWidth <= 900) closeSidebar();
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════
+// PROFILE SECTION
+// ═══════════════════════════════════════════════
+function openProfile() {
+  // Navigate to profile via the sidebar nav
+  const profNav = [...document.querySelectorAll('.sb-nav-item')].find(el => el.textContent.trim().includes('Your Profile'));
+  if (profNav) dbNav('profile', profNav);
+  else {
+    document.querySelectorAll('.db-section').forEach(s => s.classList.remove('active'));
+    document.getElementById('sec-profile').classList.add('active');
+  }
+  renderProfile();
+}
+
+function renderProfile() {
+  const db = getDB();
+  const u  = db[CU] || {};
+  const pdata = getData();
+  const roleCls = CR==='admin'?'av-admin':CR==='partner'?'av-partner':'av-member';
+  const roleLabel = {admin:'★ Admin', partner:'◆ Partner', member:'● Member'}[CR] || CR;
+  const roleBg = {admin:'background:var(--yellow);color:#000', partner:'background:var(--pink);color:#fff', member:'background:var(--purple);color:#fff'}[CR] || '';
+
+  // Avatar — use shared helper so it's always consistent
+  const _rcu = sessionStorage.getItem('golmaal_user');
+  const _rcr = sessionStorage.getItem('golmaal_role');
+  refreshAllAvatars(_rcu, _rcr);
+
+  document.getElementById('prof-name-lbl').textContent = CU;
+  const badge = document.getElementById('prof-role-badge');
+  badge.textContent = roleLabel;
+  badge.style.cssText += ';' + roleBg;
+
+  // Joined date
+  const joined = u.joinedAt ? new Date(u.joinedAt) : null;
+  if (joined) {
+    const d = String(joined.getDate()).padStart(2,'0');
+    const m = String(joined.getMonth()+1).padStart(2,'0');
+    const y = String(joined.getFullYear()).slice(-2);
+    document.getElementById('prof-joined').textContent = 'Joined: ' + d+'/'+m+'/'+y;
+  }
+
+  // Fields
+  document.getElementById('prof-inp-user').value  = CU;
+  document.getElementById('prof-inp-email').value = u.email || '';
+  document.getElementById('prof-inp-pass').value  = '';
+}
+
+function handleProfilePhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    const pdata = getData();
+    pdata.profilePhoto = dataUrl;
+    saveData(pdata);
+
+    // Update all avatars
+    const profImg = document.getElementById('prof-av-img');
+    profImg.src = dataUrl;
+    profImg.style.display = 'block';
+    document.getElementById('prof-av-initials').style.display = 'none';
+
+    const _cu2 = sessionStorage.getItem('golmaal_user');
+    const _cr2 = sessionStorage.getItem('golmaal_role');
+    refreshAllAvatars(_cu2, _cr2);
+    showPopup('success', '📷 Profile photo updated!');
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function cancelProfilePhoto() {
+  const pdata = getData();
+  delete pdata.profilePhoto;
+  saveData(pdata);
+  document.getElementById('prof-av-img').style.display = 'none';
+  document.getElementById('prof-av-initials').style.display = 'block';
+  const _cu = sessionStorage.getItem('golmaal_user');
+  const _cr = sessionStorage.getItem('golmaal_role');
+  refreshAllAvatars(_cu, _cr);
+  showPopup('success', '🗑 Profile photo removed.');
+}
+
+function saveProfile() {
+  const db    = getDB();
+  const email = document.getElementById('prof-inp-email').value.trim();
+  const pass  = document.getElementById('prof-inp-pass').value;
+
+  if (!email) { alrt('su-alert','danger','⚠️ Email cannot be empty.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alrt('su-alert','danger','⚠️ Invalid email address.'); return; }
+  // Email clash check — other users
+  const clash = Object.entries(db).find(([u,d]) => d.email === email && u !== CU);
+  if (clash) { alrt('su-alert','danger','⚠️ That email is already used by another account.'); return; }
+
+  db[CU].email = email;
+  if (pass.length > 0) {
+    if (pass.length < 6) { alrt('su-alert','danger','⚠️ New password must be 6+ characters.'); return; }
+    // Password clash check — Golmaal style
+    const passClash = Object.entries(db).find(([u,d]) => d.password === pass && u !== CU);
+    if (passClash) {
+      const msgs = [
+        `🚨 BUSTED! That password is already being used by <b>${passClash[0]}</b>!`,
+        `👀 Oi oi oi... <b>${passClash[0]}</b> called, they want their password back!`,
+        `🤡 <b>${passClash[0]}</b> is already rocking that password. Be original, yaar!`,
+      ];
+      alrt('su-alert','danger', msgs[Math.floor(Math.random()*msgs.length)]);
+      return;
+    }
+    db[CU].password = pass;
+  }
+
+  saveDB(db);
+  document.getElementById('prof-inp-pass').value = '';
+  showPopup('success', '✅ Profile updated successfully!');
+}
+
+// Also register profile in dbNav renders map — patch the existing dbNav function
+const _origDbNav = dbNav;
 </script>
 
 <!-- ═══════════════════════════════
